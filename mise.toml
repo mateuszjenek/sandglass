@@ -1,0 +1,146 @@
+[env]
+IMG = "{{ env.IMG | default(value='controller:latest') }}"
+CONTAINER_TOOL = "{{ env.CONTAINER_TOOL | default(value='docker') }}"
+KIND_CLUSTER = "{{ env.KIND_CLUSTER | default(value='sandglass-test-e2e') }}"
+
+[tools]
+go = "1.26.0"
+kustomize = "5.8.1"
+kind = "0.32.0"
+golangci-lint = "2.12.2"
+
+[tasks.manifests]
+description = "Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects."
+run = "go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 rbac:roleName=manager-role crd webhook paths=\"./...\" output:crd:artifacts:config=config/crd/bases"
+
+[tasks.generate]
+description = "Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations."
+run = """
+YEAR=$(date +%Y)
+go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 object:headerFile="hack/boilerplate.go.txt",year=$YEAR paths="./..."
+"""
+
+[tasks.fmt]
+description = "Run go fmt against code."
+run = "go fmt ./..."
+
+[tasks.vet]
+description = "Run go vet against code."
+run = "go vet ./..."
+
+[tasks.test]
+description = "Run tests."
+depends = ["manifests", "generate", "fmt", "vet"]
+run = """
+ENVTEST_K8S_VERSION=$(go list -m -f '{% raw %}{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}{% endraw %}' k8s.io/api | sed -E 's/^v?[0-9]+\\.([0-9]+).*/1.\\1/')
+ENVTEST_VERSION=$(go list -m -f '{% raw %}{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}{% endraw %}' sigs.k8s.io/controller-runtime)
+SETUP_ENVTEST="go run sigs.k8s.io/controller-runtime/tools/setup-envtest@$ENVTEST_VERSION"
+
+# Set up envtest binaries
+KUBEBUILDER_ASSETS=$($SETUP_ENVTEST use $ENVTEST_K8S_VERSION --bin-dir "$(pwd)/bin" -p path)
+export KUBEBUILDER_ASSETS
+
+go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+"""
+
+[tasks.setup-test-e2e]
+description = "Set up a Kind cluster for e2e tests if it does not exist"
+run = """
+if kind get clusters | grep -q "$KIND_CLUSTER"; then
+    echo "Kind cluster '$KIND_CLUSTER' already exists. Skipping creation."
+else
+    echo "Creating Kind cluster '$KIND_CLUSTER' using setup-cluster.sh..."
+    KIND="kind" test/scripts/setup-cluster.sh $KIND_CLUSTER
+fi
+"""
+
+[tasks.test-e2e]
+description = "Run the e2e tests. Expected an isolated environment using Kind."
+depends = ["setup-test-e2e", "manifests", "generate", "fmt", "vet"]
+run = """
+KIND="kind" KIND_CLUSTER=$KIND_CLUSTER go test -tags=e2e ./test/e2e/ -v -ginkgo.v
+mise run cleanup-test-e2e
+"""
+
+[tasks.cleanup-test-e2e]
+description = "Tear down the Kind cluster used for e2e tests"
+run = "kind delete cluster --name $KIND_CLUSTER"
+
+[tasks.lint]
+description = "Run golangci-lint linter"
+run = "golangci-lint run"
+
+[tasks.lint-fix]
+description = "Run golangci-lint linter and perform fixes"
+run = "golangci-lint run --fix"
+
+[tasks.lint-config]
+description = "Verify golangci-lint configuration"
+run = "golangci-lint config verify"
+
+[tasks.build]
+description = "Build manager binary."
+depends = ["manifests", "generate", "fmt", "vet"]
+run = "go build -o bin/manager cmd/main.go"
+
+[tasks.run]
+description = "Run a controller from your host."
+depends = ["manifests", "generate", "fmt", "vet"]
+run = "go run ./cmd/main.go"
+
+[tasks.docker-build]
+description = "Build docker image with the manager."
+run = "$CONTAINER_TOOL build -t $IMG ."
+
+[tasks.docker-push]
+description = "Push docker image with the manager."
+run = "$CONTAINER_TOOL push $IMG"
+
+[tasks.build-installer]
+description = "Generate a consolidated YAML with CRDs and deployment."
+depends = ["manifests", "generate"]
+run = """
+mkdir -p dist
+cd config/manager && kustomize edit set image controller=$IMG
+cd ../..
+kustomize build config/default > dist/install.yaml
+"""
+
+[tasks.install]
+description = "Install CRDs into the K8s cluster specified in ~/.kube/config."
+depends = ["manifests"]
+run = """
+OUT=$(kustomize build config/crd 2>/dev/null || true)
+if [ -n "$OUT" ]; then
+    echo "$OUT" | kubectl apply --server-side -f -
+else
+    echo "No CRDs to install; skipping."
+fi
+"""
+
+[tasks.uninstall]
+description = "Uninstall CRDs from the K8s cluster specified in ~/.kube/config."
+depends = ["manifests"]
+run = """
+OUT=$(kustomize build config/crd 2>/dev/null || true)
+if [ -n "$OUT" ]; then
+    echo "$OUT" | kubectl delete --ignore-not-found -f -
+else
+    echo "No CRDs to delete; skipping."
+fi
+"""
+
+[tasks.deploy]
+description = "Deploy controller to the K8s cluster specified in ~/.kube/config."
+depends = ["manifests"]
+run = """
+cd config/manager && kustomize edit set image controller=$IMG
+cd ../..
+kustomize build config/default | kubectl apply --server-side -f -
+"""
+
+[tasks.undeploy]
+description = "Undeploy controller from the K8s cluster specified in ~/.kube/config."
+run = """
+kustomize build config/default | kubectl delete --ignore-not-found -f -
+"""

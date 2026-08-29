@@ -1,0 +1,23 @@
+# Helper ClusterRole for cluster administrators to grant read-only access to EphemeralDeployment resources.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: sandglass
+    app.kubernetes.io/managed-by: kustomize
+  name: ephemeraldeployment-viewer-role
+rules:
+- apiGroups:
+  - sandglass.io
+  resources:
+  - ephemeraldeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sandglass.io
+  resources:
+  - ephemeraldeployments/status
+  verbs:
+  - get

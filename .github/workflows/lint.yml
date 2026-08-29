@@ -1,0 +1,30 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions: {}
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+    name: Run Linter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+
+      - name: Check linter configuration
+        run: mise run lint-config
+
+      - name: Run linter
+        run: mise run lint

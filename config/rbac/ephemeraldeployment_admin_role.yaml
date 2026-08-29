@@ -1,0 +1,21 @@
+# Helper ClusterRole for cluster administrators to manage EphemeralDeployment resources.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: sandglass
+    app.kubernetes.io/managed-by: kustomize
+  name: ephemeraldeployment-admin-role
+rules:
+- apiGroups:
+  - sandglass.io
+  resources:
+  - ephemeraldeployments
+  verbs:
+  - '*'
+- apiGroups:
+  - sandglass.io
+  resources:
+  - ephemeraldeployments/status
+  verbs:
+  - get
