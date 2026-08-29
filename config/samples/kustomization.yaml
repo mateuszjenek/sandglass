@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- routing_v1alpha1_ephemeraldeployment.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

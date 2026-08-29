@@ -1,0 +1,23 @@
+apiVersion: sandglass.io/v1alpha1
+kind: EphemeralDeployment
+metadata:
+  labels:
+    app.kubernetes.io/name: sandglass
+    app.kubernetes.io/managed-by: kustomize
+  name: ephemeraldeployment-sample
+spec:
+  targetDeployment: "frontend-baseline"
+  replicas: 1
+  ttl: "2h" # 2 hours
+  routing:
+    headerName: "X-Sandglass"
+    headerMatch: "pr-1234"
+    gatewayRef: "main-gateway"
+  podPatch:
+    spec:
+      containers:
+      - name: frontend
+        image: myregistry.com/frontend:pr-1234
+        env:
+        - name: DATABASE_URL
+          value: "postgres://staging-db:5432"
