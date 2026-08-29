@@ -41,15 +41,17 @@ flowchart TD
         end
     end
     
-    Controller["Sandglass Controller"] -.->|Snapshots & Patches| EphemDeploy
-    Controller -.->|Creates & Mirrors Ports| EphemSvc
-    Controller -.->|Configures X-Sandglass Match| HTTPRoute
-    Controller -.->|Deletes on Expiry| Ephemeral
+    Controller["Sandglass Controller"] -.->|"Snapshots & Patches"| EphemDeploy
+    Controller -.->|"Creates & Mirrors Ports"| EphemSvc
+    Controller -.->|"Configures X-Sandglass Match"| HTTPRoute
+    Controller -.->|"Deletes on Expiry"| EphemDeploy
 
-    Client -->|HTTP Request| GW
+    Client -->|"HTTP Request"| GW
     GW --> HTTPRoute
-    HTTPRoute -->|Default (No Header)| BaselineSvc --> BaselineDeploy
-    HTTPRoute -->|Header: X-Sandglass = pr-1234| EphemSvc --> EphemDeploy
+    HTTPRoute -->|"Default (No Header)"| BaselineSvc
+    BaselineSvc --> BaselineDeploy
+    HTTPRoute -->|"Header: X-Sandglass = pr-1234"| EphemSvc
+    EphemSvc --> EphemDeploy
 ```
 
 ---
